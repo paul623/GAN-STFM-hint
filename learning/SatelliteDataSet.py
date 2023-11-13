@@ -6,6 +6,7 @@ from torchvision import transforms
 import rasterio
 from torchvision.transforms import Resize
 
+from original.data import PatchSet
 from original.utils import make_tuple
 from enum import Enum, auto, unique
 import numpy as np
@@ -84,7 +85,7 @@ class SatelliteDataSet(Dataset):
         id_n = index // (self.n_patch_x * self.n_patch_y)
         residual = index % (self.n_patch_x * self.n_patch_y)
         id_x = self.patch_stride[0] * (residual % self.n_patch_x)
-        id_y = self.patch_stride[1] * (residual // self.n_patch_y)
+        id_y = self.patch_stride[1] * (residual // self.n_patch_x)
 
 
         return id_n, id_x, id_y
@@ -108,11 +109,12 @@ class SatelliteDataSet(Dataset):
 
 
 # 测试代码
-image_dir = Path("/home/zbl/datasets/STFusion/CIA/data_cia/train/")
+image_dir = Path("/home/zbl/datasets/STFusion/LGC/LGC_data/train/")
 image_size = [2720, 3200]
 patch_size = 256
 patch_stride = 200
 
+#image_dir, image_size, patch_size, patch_stride=None, mode=Mode.TRAINING
 dataset = SatelliteDataSet(image_dir, image_size, patch_size, patch_stride, mode=Mode.TRAINING)
 
 # 打印数据集的长度
@@ -120,7 +122,7 @@ print("Dataset length:", len(dataset))
 
 # 创建数据加载器并查看一个批次的形状
 batch_size = 8
-dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=1)
 
 for i, batch in enumerate(dataloader):
     print(f"Batch {i + 1} shape:")
