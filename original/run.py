@@ -43,11 +43,11 @@ parser.add_argument('--patch_size', type=int, nargs='+', default=None,
                     help='the patch size for prediction')
 opt = parser.parse_args()
 
-torch.manual_seed(2020)
+torch.manual_seed(2023)
 if not torch.cuda.is_available():
     opt.cuda = False
 if opt.cuda:
-    torch.cuda.manual_seed_all(2020)
+    torch.cuda.manual_seed_all(2023)
     cudnn.benchmark = True
     cudnn.deterministic = True
 

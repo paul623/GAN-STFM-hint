@@ -1,13 +1,14 @@
 from pathlib import Path
-import numpy as np
-import rasterio
 import math
-from enum import Enum, auto, unique
-
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
+import rasterio
+from torchvision.transforms import Resize
 
 from original.utils import make_tuple
+from enum import Enum, auto, unique
+import numpy as np
 
 
 @unique
@@ -18,13 +19,13 @@ class Mode(Enum):
 
 
 def get_pair_path(directory: Path, mode: Mode):
-    paths: list = [None] * 3
+    paths = [None] * 3
     if mode is Mode.TRAINING:
         year, coarse, fine = directory.name.split('_')
         for f in directory.glob('*.tif'):
-            paths[0 if year + coarse in f.name else 2] = f  # 两张图片， landsat高分放2，modis低分放0
-        refs = [p for p in (directory.parents[1] / 'refs').glob('*.tif')]  # 加载所有refs参考
-        paths[1] = refs[np.random.randint(0, len(refs))]  # 随机选取一张放入1中
+            paths[0 if year + coarse in f.name else 2] = f
+        refs = [p for p in (directory.parents[1] / 'refs').glob('*.tif')]
+        paths[1] = refs[np.random.randint(0, len(refs))]
     else:
         ref_label, pred_label = directory.name.split('-')
         ref_tokens, pred_tokens = ref_label.split('_'), pred_label.split('_')
@@ -40,7 +41,7 @@ def get_pair_path(directory: Path, mode: Mode):
             del paths[2]
     return paths
 
-# 按照get_pair_path返回的三张图片路径来加载图像
+
 def load_image_pair(directory: Path, mode: Mode):
     paths = get_pair_path(directory, mode=mode)
     images = []
@@ -48,17 +49,15 @@ def load_image_pair(directory: Path, mode: Mode):
         with rasterio.open(str(p)) as ds:
             im = ds.read()
             images.append(im)
+    if images[0].shape != images[1].shape:
+        raise ValueError(f"Images in directory {directory} have inconsistent shapes.")
+
     return images
 
 
-class PatchSet(Dataset):
-    """
-    每张图片分割成小块进行加载
-    Pillow中的Image是列优先，而Numpy中的ndarray是行优先
-    """
-
+class SatelliteDataSet(Dataset):
     def __init__(self, image_dir, image_size, patch_size, patch_stride=None, mode=Mode.TRAINING):
-        super(PatchSet, self).__init__()
+        super(SatelliteDataSet, self).__init__()
         patch_size = make_tuple(patch_size)
         patch_stride = make_tuple(patch_stride) if patch_stride else patch_size
         self.root_dir = image_dir
@@ -69,9 +68,8 @@ class PatchSet(Dataset):
 
         self.image_dirs = [p for p in self.root_dir.iterdir() if p.is_dir()]
         self.num_im_pairs = len(self.image_dirs)
-        # 计算出图像进行分块以后的patches的数目 math.ceil向上取整 size + n(stride) = x + 1
-        self.n_patch_x = math.ceil((image_size[0] - patch_size[0] + 1) / patch_stride[0])  # patch_size = [256,256]
-        self.n_patch_y = math.ceil((image_size[1] - patch_size[1] + 1) / patch_stride[1])  # path_stride = [200, 200]
+        self.n_patch_x = math.ceil((image_size[0] - patch_size[0] + 1) / patch_stride[0])
+        self.n_patch_y = math.ceil((image_size[1] - patch_size[1] + 1) / patch_stride[1])
         self.num_patch = self.num_im_pairs * self.n_patch_x * self.n_patch_y
 
     @staticmethod
@@ -87,6 +85,8 @@ class PatchSet(Dataset):
         residual = index % (self.n_patch_x * self.n_patch_y)
         id_x = self.patch_stride[0] * (residual % self.n_patch_x)
         id_y = self.patch_stride[1] * (residual // self.n_patch_y)
+
+
         return id_n, id_x, id_y
 
     def __getitem__(self, index):
@@ -96,9 +96,7 @@ class PatchSet(Dataset):
         patches = [None] * len(images)
 
         for i in range(len(patches)):
-            im = images[i][:,
-                 id_x: (id_x + self.patch_size[0]),
-                 id_y: (id_y + self.patch_size[1])]
+            im = images[i][:, id_x: (id_x + self.patch_size[0]), id_y: (id_y + self.patch_size[1])]
             patches[i] = self.transform(im)
 
         del images[:]
@@ -107,3 +105,24 @@ class PatchSet(Dataset):
 
     def __len__(self):
         return self.num_patch
+
+
+# 测试代码
+image_dir = Path("/home/zbl/datasets/STFusion/CIA/data_cia/train/")
+image_size = [2720, 3200]
+patch_size = 256
+patch_stride = 200
+
+dataset = SatelliteDataSet(image_dir, image_size, patch_size, patch_stride, mode=Mode.TRAINING)
+
+# 打印数据集的长度
+print("Dataset length:", len(dataset))
+
+# 创建数据加载器并查看一个批次的形状
+batch_size = 8
+dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+
+for i, batch in enumerate(dataloader):
+    print(f"Batch {i + 1} shape:")
+    for j, patch in enumerate(batch[0]):  # 假设只有一个样本
+        print(f"   Patch {j + 1} shape: {patch.shape}")
