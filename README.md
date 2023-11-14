@@ -17,6 +17,8 @@ pip install torchgan
 
 pip install rasterio
 
+pip install tqdm  #用来显示进度的
+
 # DataSat
 CIA:  https://data.csiro.au/collection/csiro:5846   
 

@@ -28,6 +28,7 @@ def get_pair_path(directory: Path, mode: Mode):
         refs = [p for p in (directory.parents[1] / 'refs').glob('*.tif')]
         paths[1] = refs[np.random.randint(0, len(refs))]
     else:
+        print(directory.name)
         ref_label, pred_label = directory.name.split('-')
         ref_tokens, pred_tokens = ref_label.split('_'), pred_label.split('_')
         for f in directory.glob('*.tif'):
@@ -108,23 +109,23 @@ class SatelliteDataSet(Dataset):
         return self.num_patch
 
 
-# 测试代码
-image_dir = Path("/home/zbl/datasets/STFusion/LGC/LGC_data/train/")
-image_size = [2720, 3200]
-patch_size = 256
-patch_stride = 200
-
-#image_dir, image_size, patch_size, patch_stride=None, mode=Mode.TRAINING
-dataset = SatelliteDataSet(image_dir, image_size, patch_size, patch_stride, mode=Mode.TRAINING)
-
-# 打印数据集的长度
-print("Dataset length:", len(dataset))
-
-# 创建数据加载器并查看一个批次的形状
-batch_size = 8
-dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=1)
-
-for i, batch in enumerate(dataloader):
-    print(f"Batch {i + 1} shape:")
-    for j, patch in enumerate(batch[0]):  # 假设只有一个样本
-        print(f"   Patch {j + 1} shape: {patch.shape}")
+# # 测试代码
+# image_dir = Path("/home/zbl/datasets/STFusion/LGC/LGC_data/train/")
+# image_size = [2720, 3200]
+# patch_size = 256
+# patch_stride = 200
+#
+# #image_dir, image_size, patch_size, patch_stride=None, mode=Mode.TRAINING
+# dataset = SatelliteDataSet(image_dir, image_size, patch_size, patch_stride, mode=Mode.TRAINING)
+#
+# # 打印数据集的长度
+# print("Dataset length:", len(dataset))
+#
+# # 创建数据加载器并查看一个批次的形状
+# batch_size = 8
+# dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=1)
+#
+# for i, batch in enumerate(dataloader):
+#     print(f"Batch {i + 1} shape:")
+#     for j, patch in enumerate(batch[0]):  # 假设只有一个样本
+#         print(f"   Patch {j + 1} shape: {patch.shape}")
