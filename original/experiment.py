@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchgan.losses import LeastSquaresDiscriminatorLoss, LeastSquaresGeneratorLoss
+from tqdm import tqdm
 
 from model import *
 from data import PatchSet, Mode
@@ -80,7 +81,7 @@ class Experiment(object):
             这里target是第三项，即 target = [Ft]
             CGAN有两个输入，一个是噪声z一个是label，这里将Ft'经过特征网络提取特征后作为label输入，噪声z就是要预测的低分图像Ct
             '''
-            inputs, target = data[:-1], data[-1]    # inputs =   target = [Ft]
+            inputs, target = data[:-1], data[-1]    # inputs =[Ct, Ft']   target = [Ft]
             ############################
             # (1) Update D network 先更新判别器
             ###########################
@@ -198,18 +199,18 @@ class Experiment(object):
         pixel_scale = 10000
         patches = []
         t_start = timer()
-        count = 1
+        # 初始化进度条
+        progress_bar = tqdm(total=len(test_loader))
+
         for inputs in test_loader:
-            print(f"count:{count} in {n_blocks}")
+            progress_bar = tqdm(total=len(inputs))
             inputs = [im.to(self.device) for im in inputs]
             prediction = self.generator(inputs)
             prediction = prediction.squeeze().cpu().numpy()
             patches.append(prediction * pixel_scale)
-            count = count+1
+
             # 完成一张影像以后进行拼接
             if len(patches) == n_blocks:
-                count = 1
-                print("完成一张。。。")
                 result = np.empty((NUM_BANDS, *self.image_size), dtype=np.float32)
                 block_count = 0
                 for i in range(rows):
@@ -222,6 +223,7 @@ class Experiment(object):
                         ] = patches[block_count]
                         block_count += 1
                 patches.clear()
+
                 # 存储预测影像结果
                 result = result.astype(np.int16)
                 metadata = {
@@ -236,3 +238,9 @@ class Experiment(object):
                 t_end = timer()
                 self.logger.info(f'Time cost: {t_end - t_start}s on {name}')
                 t_start = timer()
+
+            # 更新进度条
+            progress_bar.update(1)
+
+        # 完成后关闭进度条
+        progress_bar.close()

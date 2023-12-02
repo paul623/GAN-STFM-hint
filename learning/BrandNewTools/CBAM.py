@@ -84,6 +84,15 @@ class CBAM(nn.Module):
         self.sa = SpatialAttention()
 
     def forward(self, x):
-        x = self.ca(x) * x  # 广播机制
-        x = self.sa(x) * x  # 广播机制
-        return x
+        if len(x) == 2:
+            x1 = x[0]
+            x2 = x[1]
+            x1 = self.ca(x1) * x1  # 广播机制
+            x1 = self.sa(x1) * x1  # 广播机制
+            x2 = self.ca(x2) * x2  # 广播机制
+            x2 = self.sa(x2) * x2  # 广播机制
+            return x1, x2
+        else:
+            x = self.ca(x) * x
+            x = self.sa(x) * x
+            return x

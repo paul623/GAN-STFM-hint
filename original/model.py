@@ -3,9 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchgan.layers import SpectralNorm2d
 import enum
-
 from ssim import msssim
 from normalization import SwitchNorm2d
+
+import sys
+sys.path.append("../")
+from learning.BrandNewTools.CBAM import CBAM
 
 
 class Sampling(enum.Enum):
@@ -96,7 +99,7 @@ class ResidulBlockWtihSwitchNorm(nn.Module):
             SwitchNorm2d(channels),  # 可以选择多种归一化
             nn.LeakyReLU(inplace=True),
             # 比论文多了一层卷积，为了调整输出通道
-            nn.Conv2d(channels, out_channels, 1)
+            nn.Conv2d(channels, out_channels, 1),
         ]
         transform = [
             Conv3X3WithPadding(in_channels, channels),
@@ -179,7 +182,7 @@ class SFFusion(nn.Module):
             ResidulBlockWtihSwitchNorm(in_channels, channels[0]),
             ResidulBlockWtihSwitchNorm(channels[0], channels[1]),
             ResidulBlockWtihSwitchNorm(channels[1], channels[2]),
-            ResidulBlockWtihSwitchNorm(channels[2], channels[3])
+            ResidulBlockWtihSwitchNorm(channels[2], channels[3]),
         )
         self.decoder = nn.Sequential(
             ResidulBlock(channels[3] * 2, channels[3]),
