@@ -7,8 +7,15 @@ from ssim import msssim
 from normalization import SwitchNorm2d
 
 import sys
+
 sys.path.append("../")
 from learning.BrandNewTools.CBAM import CBAM
+
+'''
+模型定义部分
+主要是CGAN的结构
+使用AutoEncoder调用了预训练权重，来帮助网络训练
+'''
 
 
 class Sampling(enum.Enum):
@@ -17,9 +24,9 @@ class Sampling(enum.Enum):
     Identity = enum.auto()
 
 
-NUM_BANDS = 6
-PATCH_SIZE = 256
-SCALE_FACTOR = 16
+NUM_BANDS = 6  # 图片通道数
+PATCH_SIZE = 256  # 切块大小
+SCALE_FACTOR = 16  # 裁剪尺度
 
 
 # 上采样
@@ -32,6 +39,17 @@ class Upsample(nn.Module):
         # 默认使用双线性插值方法，以在缩放时平滑地估计像素值
         # 例如，scale_factor=2 表示在每个维度上将尺寸扩大两倍，scale_factor=(0.5, 0.5) 表示在每个维度上将尺寸缩小为原来的一半。
         return F.interpolate(inputs, scale_factor=self.scale_factor)
+
+
+'''
+生成器的损失，主要是Feature，Spectrum光谱，Vision视觉，GAN四个损失
+
+均方误差（MSE）余弦相似度（Cosine Similarity） 结构相似性指数（MS-SSIM）
+余弦相似度衡量了两个向量之间的方向一致性，取值范围在 -1 到 1 之间，1 表示完全相似，-1 表示完全相反。
+MSSIM是参考自https://github.com/jorge-pessoa/pytorch-msssim 多尺度结构相似度
+这里传入了某个模型，然后利用这个模型的卷积层来更好的提取特征再来计算损失
+
+'''
 
 
 class ReconstructionLoss(nn.Module):
@@ -58,9 +76,19 @@ class ReconstructionLoss(nn.Module):
         return loss
 
 
+'''
+本质上重写了Conv2d，设置kernel大小为3，padding为1
+'''
+
+
 class Conv3X3NoPadding(nn.Conv2d):
     def __init__(self, in_channels, out_channels, stride=1):
         super(Conv3X3NoPadding, self).__init__(in_channels, out_channels, 3, stride=stride, padding=1)
+
+
+'''
+增加了一个ReplicationPad2d
+'''
 
 
 class Conv3X3WithPadding(nn.Sequential):
@@ -73,14 +101,19 @@ class Conv3X3WithPadding(nn.Sequential):
         )
 
 
+'''
+卷积块
+'''
+
+
 class ConvBlock(nn.Sequential):
     def __init__(self, in_channels, out_channels, sampling=None):
         layers = []
 
-        if sampling == Sampling.DownSampling:
+        if sampling == Sampling.DownSampling:  # 如果是下采样
             layers.append(Conv3X3WithPadding(in_channels, out_channels, 2))
         else:
-            if sampling == Sampling.UpSampling:
+            if sampling == Sampling.UpSampling:  # 如果是上采样
                 layers.append(Upsample(2))
             layers.append(Conv3X3WithPadding(in_channels, out_channels))
 
@@ -88,11 +121,19 @@ class ConvBlock(nn.Sequential):
         super(ConvBlock, self).__init__(*layers)
 
 
+'''
+GEncoder ResBlock
+生成器的编码器
+加入可变归一化的 残差快
+批归一化通过对每层的输出进行归一化处理，有助于提高训练的稳定性、加速收敛速度，并有助于防止过拟合。
+'''
+
+
 class ResidulBlockWtihSwitchNorm(nn.Module):
     def __init__(self, in_channels, out_channels, sampling=None):
         super(ResidulBlockWtihSwitchNorm, self).__init__()
-        channels = min(in_channels, out_channels)
-        residual = [
+        channels = min(in_channels, out_channels)  # 取输入输出通道的最小值
+        residual = [  # 对Fine Reference参考进行特征提取
             SwitchNorm2d(in_channels),
             nn.LeakyReLU(inplace=True),
             Conv3X3WithPadding(in_channels, channels),  # 其实就是多了一个nn.ReplicationPad2d(1)
@@ -101,25 +142,33 @@ class ResidulBlockWtihSwitchNorm(nn.Module):
             # 比论文多了一层卷积，为了调整输出通道
             nn.Conv2d(channels, out_channels, 1),
         ]
-        transform = [
+        transform = [  # 对Coarse on prediction要预测的粗糙图像进行特征提取
             Conv3X3WithPadding(in_channels, channels),
             nn.Conv2d(channels, out_channels, 1),
             nn.LeakyReLU(inplace=True)
         ]
-        if sampling == Sampling.UpSampling:
-            residual.insert(2, Upsample(2))
-            transform.insert(0, Upsample(2))
-        elif sampling == Sampling.DownSampling:
-            residual[2] = Conv3X3WithPadding(in_channels, channels, 2)
-            transform[0] = Conv3X3WithPadding(in_channels, channels, 2)
+        if sampling == Sampling.UpSampling:  # 如果进行上采样
+            residual.insert(2, Upsample(2))  # 在Conv3之前插入上采样模块
+            transform.insert(0, Upsample(2))  # 在提取特征之后，主要是因为该图片是粗糙的，直接上采样效果不好
+        elif sampling == Sampling.DownSampling:  # 如果进行下采样
+            residual[2] = Conv3X3WithPadding(in_channels, channels, 2)  # 在Conv3之前插入上采样模块
+            transform[0] = Conv3X3WithPadding(in_channels, channels, 2)  # 在提取特征之前进行下采样操作
 
         self.residual = nn.Sequential(*residual)
         self.transform = nn.Sequential(*transform)
 
     def forward(self, inputs):
-        trunk = self.residual(inputs[1])  # 细粒度的特征
-        lateral = self.transform(inputs[0])  # 输入的是coarse features 粗粒度特征
-        return lateral, trunk + lateral
+        trunk = self.residual(inputs[1])  # 细粒度的特征Fine reference
+        lateral = self.transform(inputs[0])  # 输入的是coarse on prediction 粗粒度特征
+        return lateral, trunk + lateral  # lateral:Coarse Features  trunk+lateral: Adjusted fine features
+
+
+'''
+GDecoder ResBlock
+生成器的解码器
+输出是 Concatenated features
+输出是 Adjusted fine features
+'''
 
 
 class ResidulBlock(nn.Module):
@@ -127,11 +176,14 @@ class ResidulBlock(nn.Module):
         super(ResidulBlock, self).__init__()
         channels = min(in_channels, out_channels)
         residual = [
+            nn.LeakyReLU(inplace=True),  # 2023年12月3日 add 原论文画了，但是代码没有，加上去看看效果如何
             Conv3X3WithPadding(in_channels, channels),
             nn.LeakyReLU(inplace=True),
-            nn.Conv2d(channels, out_channels, 1)
+            nn.Conv2d(channels, out_channels, 1)  # 一样，调整通道数
         ]
-        transform = [nn.Conv2d(in_channels, out_channels, 1)]
+        transform = [
+            nn.Conv2d(in_channels, out_channels, 1)  # 和论文原图保持一致
+        ]
 
         if sampling == Sampling.UpSampling:
             residual.insert(0, Upsample(2))
@@ -146,7 +198,7 @@ class ResidulBlock(nn.Module):
     def forward(self, inputs):
         trunk = self.residual(inputs)
         lateral = self.transform(inputs)
-        return trunk + lateral
+        return trunk + lateral  # 返回的Adjusted fine features
 
 
 class AutoEncoder(nn.Module):
@@ -174,6 +226,15 @@ class AutoEncoder(nn.Module):
         return out
 
 
+'''
+Generator
+两部分组成，encoder和decoder
+encoder使用的是带可变归一化的残差块
+decoder使用的是普通的残差块
+这里使用的都是3*3的卷积块哦~
+'''
+
+
 class SFFusion(nn.Module):
     def __init__(self, in_channels=NUM_BANDS, out_channels=NUM_BANDS):
         channels = (16, 32, 64, 128)
@@ -182,7 +243,7 @@ class SFFusion(nn.Module):
             ResidulBlockWtihSwitchNorm(in_channels, channels[0]),
             ResidulBlockWtihSwitchNorm(channels[0], channels[1]),
             ResidulBlockWtihSwitchNorm(channels[1], channels[2]),
-            ResidulBlockWtihSwitchNorm(channels[2], channels[3]),
+            ResidulBlockWtihSwitchNorm(channels[2], channels[3]),  # 输出的是两张图片， 粗粒度图像和融合图像
         )
         self.decoder = nn.Sequential(
             ResidulBlock(channels[3] * 2, channels[3]),
@@ -193,7 +254,13 @@ class SFFusion(nn.Module):
         )
 
     def forward(self, inputs):  # inputs实际上是两张图片，所以需要把他们拼成一个
-        return self.decoder(torch.cat(self.encoder(inputs), 1))  # 按照列拼在一起，因此通道数变成两倍
+        return self.decoder(torch.cat(self.encoder(inputs), 1))  # 按照通道数拼在一起，因此通道数变成两倍
+
+
+'''
+D-ResBlock
+判别器的残差块
+'''
 
 
 class ResidulBlockWithSpectralNorm(nn.Module):
@@ -202,14 +269,14 @@ class ResidulBlockWithSpectralNorm(nn.Module):
         self.residual = nn.Sequential(
             nn.BatchNorm2d(in_channels),
             nn.LeakyReLU(inplace=True),
-            SpectralNorm2d(
+            SpectralNorm2d(  # 旨在提升GAN中的判别器的表现和稳定性
                 Conv3X3NoPadding(in_channels, in_channels, stride=2)),
             nn.BatchNorm2d(in_channels),
             nn.LeakyReLU(inplace=True),
             SpectralNorm2d(
-                nn.Conv2d(in_channels, out_channels, 1)),
+                nn.Conv2d(in_channels, out_channels, 1)),  # 调整通道
         )
-        self.transform = SpectralNorm2d(nn.Conv2d(in_channels, out_channels, 1, stride=2))
+        self.transform = SpectralNorm2d(nn.Conv2d(in_channels, out_channels, 1, stride=2))  # 与原论文保持一致
 
     def forward(self, inputs):
         return self.transform(inputs) + self.residual(inputs)
@@ -226,18 +293,26 @@ class Discriminator(nn.Sequential):
 
     def forward(self, inputs):
         prediction = super(Discriminator, self).forward(inputs)
-        return prediction.view(-1, 1).squeeze(1)
+        prediction = F.sigmoid(prediction)      # 2023年12月3日 add
+        return prediction.view(-1, 1).squeeze(1)   # 将输出的形状从 (batch_size, 1, h, w) 转换为 (batch_size, 1) 的形状，以适应二分类任务的需要
 
-# 判别器
+
+'''
+Multi scale Discriminator
+'''
+
 class MSDiscriminator(nn.Module):
     def __init__(self):
         super(MSDiscriminator, self).__init__()
-        self.d1 = Discriminator((NUM_BANDS * 2, 32, 32, 64, 64, 128, 128, 256, 256))
-        self.d2 = Discriminator((NUM_BANDS * 2, 32, 64, 64, 128, 128, 256, 256))
-        self.d3 = Discriminator((NUM_BANDS * 2, 32, 64, 128, 128, 256, 256))
+        self.d1 = Discriminator((NUM_BANDS * 2, 32, 32, 64, 64, 128, 128, 256, 256))  # 9个残差块
+        self.d2 = Discriminator((NUM_BANDS * 2, 32, 64, 64, 128, 128, 256, 256))  # 8个残差块
+        self.d3 = Discriminator((NUM_BANDS * 2, 32, 64, 128, 128, 256, 256))  # 7个残差块
 
     def forward(self, inputs):
         l1 = self.d1(inputs)
-        l2 = self.d2(F.interpolate(inputs, scale_factor=0.5))
-        l3 = self.d3(F.interpolate(inputs, scale_factor=0.25))
-        return torch.mean(torch.stack((l1, l2, l3)))
+        l2 = self.d2(F.interpolate(inputs, scale_factor=0.5))  # F.interpolate是插值操作，对输入进行0.5倍缩放插值
+        a = F.interpolate(inputs, scale_factor=0.5)
+        b = F.interpolate(inputs, scale_factor=0.25)
+        l3 = self.d3(F.interpolate(inputs, scale_factor=0.25))  # 对输入进行0.25倍缩放
+        return torch.mean(torch.stack((l1, l2, l3)))  # stack是堆叠的意思，即由原来的尺度变成[3,原来形状]
+

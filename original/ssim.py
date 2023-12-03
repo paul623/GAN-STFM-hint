@@ -65,9 +65,15 @@ def ssim(img1, img2, window_size=11, window=None, size_average=True, full=False,
     return ret
 
 
+'''
+计算多尺度结构相似性指数（MS-SSIM）
+MS-SSIM是图像质量评价的一种指标，它在不同尺度下比较图像的结构相似性。
+'''
+
+
 def msssim(img1, img2, window_size=11, size_average=True, val_range=None, normalize=False):
     device = img1.device
-    weights = torch.FloatTensor([0.0448, 0.2856, 0.3001, 0.2363, 0.1333]).to(device)
+    weights = torch.FloatTensor([0.0448, 0.2856, 0.3001, 0.2363, 0.1333]).to(device) # 啊这？？？？这个权重从哪来的
     levels = weights.size()[0]
     mssim = []
     mcs = []

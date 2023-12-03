@@ -8,7 +8,12 @@ import torch
 from torch.utils.data import Dataset
 
 from original.utils import make_tuple
-
+'''
+2023年12月3日
+这个文件主要是用来对遥感图像进行切块处理
+定义了一个PatchSet，可以直接当成dataset来用
+只需要注意一下patch_size大小，在训练的时候无所谓，但是测试的时候必须都能被高宽整除
+'''
 
 @unique
 class Mode(Enum):

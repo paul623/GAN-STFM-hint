@@ -16,7 +16,10 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-
+'''
+实验部分
+重点关注train
+'''
 class Experiment(object):
     def __init__(self, option):
         self.device = torch.device('cuda' if option.cuda else 'cpu')
