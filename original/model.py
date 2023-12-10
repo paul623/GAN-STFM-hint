@@ -5,7 +5,7 @@ from torchgan.layers import SpectralNorm2d
 import enum
 from ssim import msssim
 from normalization import SwitchNorm2d
-
+from learning.BrandNewTools.TRNet import SuperResTransformer
 import sys
 
 sys.path.append("../")
@@ -233,8 +233,6 @@ encoder使用的是带可变归一化的残差块
 decoder使用的是普通的残差块
 这里使用的都是3*3的卷积块哦~
 '''
-
-
 class SFFusion(nn.Module):
     def __init__(self, in_channels=NUM_BANDS, out_channels=NUM_BANDS):
         channels = (16, 32, 64, 128)
@@ -245,6 +243,11 @@ class SFFusion(nn.Module):
             ResidulBlockWtihSwitchNorm(channels[1], channels[2]),
             ResidulBlockWtihSwitchNorm(channels[2], channels[3]),  # 输出的是两张图片， 粗粒度图像和融合图像
         )
+        self.fushion = SuperResTransformer(dim=channels[3]*2,
+                                            depth=6,
+                                            heads=8,
+                                            mlp_dim=128,
+                                            dropout=0.1)
         self.decoder = nn.Sequential(
             ResidulBlock(channels[3] * 2, channels[3]),
             ResidulBlock(channels[3], channels[2]),
@@ -254,6 +257,8 @@ class SFFusion(nn.Module):
         )
 
     def forward(self, inputs):  # inputs实际上是两张图片，所以需要把他们拼成一个
+        x = torch.cat(self.encoder(inputs), 1)
+        x = self.fushion(x )
         return self.decoder(torch.cat(self.encoder(inputs), 1))  # 按照通道数拼在一起，因此通道数变成两倍
 
 

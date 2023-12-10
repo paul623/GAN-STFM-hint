@@ -119,3 +119,13 @@ def save_array_as_tif(matrix, path, profile=None, prototype=None):
                 dst.write(matrix[i], i + 1)
         else:
             dst.write(matrix, 1)
+
+
+def generate_positional_encoding(inputs):
+    batch_size, height, width = inputs.size(0), inputs.size(2), inputs.size(3)
+    x_coords = torch.linspace(-1, 1, width)
+    y_coords = torch.linspace(-1, 1, height)
+    x_grid, y_grid = torch.meshgrid(x_coords, y_coords)
+    positional_encoding = torch.stack((x_grid, y_grid), dim=-1).unsqueeze(0)
+    positional_encoding = positional_encoding.repeat(batch_size, 1, 1, 1)
+    return positional_encoding

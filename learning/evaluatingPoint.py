@@ -13,7 +13,7 @@ import tifffile
 from pytorch_msssim import ssim
 
 ground_truth_dir = "/home/byt/Fusion/ganstfm-main/ganstfm-main/dataset/LGC_data/refs/20050129_TM.tif"
-predict_dir = "/home/byt/Fusion/ganstfm-main/ganstfm-main/run_LGC_C2/test/PRED_2005_045_0214-2005_029_0129.tif"
+predict_dir = "/home/byt/Fusion/ganstfm-main/ganstfm-main/run_LGC_C1/test/PRED_2005_045_0214-2005_029_0129.tif"
 
 def load_tiff_as_tensor(file_path):
     # 读取 TIFF 图像
