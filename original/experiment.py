@@ -204,9 +204,15 @@ class Experiment(object):
         t_start = timer()
         # 初始化进度条
         progress_bar = tqdm(total=len(test_loader))
-
+        '''
+        e.g 2005_045_0214-2005_061_0302中，有两组照片（一张低分，一张高分，对应）
+        pred: 2005_061_0302
+        ref: 2005_045_0214
+        inputs=[modis:2005061, landsat:20050214]
+        所以预测的是2005061，用20050214这张landsat作为参考。
+        最后计算预测与实际的差值：modis_2005061和landsat_20050302
+        '''
         for inputs in test_loader:
-            progress_bar = tqdm(total=len(inputs))
             inputs = [im.to(self.device) for im in inputs]
             prediction = self.generator(inputs)
             prediction = prediction.squeeze().cpu().numpy()

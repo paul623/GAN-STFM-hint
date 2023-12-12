@@ -12,8 +12,9 @@ from numpy.linalg import norm
 import tifffile
 from pytorch_msssim import ssim
 
-ground_truth_dir = "/home/byt/Fusion/ganstfm-main/ganstfm-main/dataset/LGC_data/refs/20050129_TM.tif"
-predict_dir = "/home/byt/Fusion/ganstfm-main/ganstfm-main/run_LGC_C1/test/PRED_2005_045_0214-2005_029_0129.tif"
+ground_truth_dir = "/home/zbl/datasets/STFusion/LGC/LGC_data/val/2005_061_0302-2005_045_0214/20050302_TM.tif"
+predict_dir = "/home/zbl/datasets/STFusion/RunLog/test/PRED_2005_061_0302-2005_045_0214.tif"
+
 
 def load_tiff_as_tensor(file_path):
     # 读取 TIFF 图像
@@ -92,10 +93,10 @@ image_pred = load_tiff_as_tensor(predict_dir)
 image_target = load_tiff_as_tensor(ground_truth_dir)
 
 
-mae_value = calculate_mae(image_pred, image_pred)
-rmse_value = calculate_rmse(image_pred, image_pred)
-sam_value = calculate_sam(predict_dir, predict_dir)
-ssim_value = calculate_ssim(image_pred, image_pred)
+mae_value = calculate_mae(image_pred, image_target)
+rmse_value = calculate_rmse(image_pred, image_target)
+sam_value = calculate_sam(predict_dir, ground_truth_dir)
+ssim_value = calculate_ssim(image_pred, image_target)
 
 print(f"Mean Absolute Error (MAE): {mae_value:.4f}")
 print(f"Root Mean Square Error (RMSE): {rmse_value:.4f}")
