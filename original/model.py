@@ -71,7 +71,6 @@ class ReconstructionLoss(nn.Module):
                 self.beta * (1.0 - msssim(prediction, target, normalize=True)))
         return loss
 
-
 '''
 本质上重写了Conv2d，设置kernel大小为3，padding为1
 '''
@@ -136,6 +135,18 @@ class ResidulBlockWtihSwitchNorm(nn.Module):
             # 比论文多了一层卷积，为了调整输出通道
             nn.Conv2d(channels, out_channels, 1)
         ]
+        self.global_block = nn.Sequential(
+            SwitchNorm2d(in_channels * 2),
+            nn.LeakyReLU(inplace=True),
+            Conv3X3WithPadding(in_channels*2, in_channels),  # 其实就是多了一个nn.ReplicationPad2d(1)
+            SwitchNorm2d(in_channels),
+            nn.LeakyReLU(inplace=True),
+            Conv3X3WithPadding(in_channels, channels),  # 其实就是多了一个nn.ReplicationPad2d(1)
+            SwitchNorm2d(channels),  # 可以选择多种归一化
+            nn.LeakyReLU(inplace=True),
+            # 比论文多了一层卷积，为了调整输出通道
+            nn.Conv2d(channels, out_channels, 1)
+        )
         transform = [ # 对Coarse on prediction要预测的粗糙图像进行特征提取
             Conv3X3WithPadding(in_channels, channels),
             nn.Conv2d(channels, out_channels, 1),
@@ -155,9 +166,12 @@ class ResidulBlockWtihSwitchNorm(nn.Module):
         trunk = self.residual(inputs[1])  # 细粒度的特征Fine reference
         lateral = self.transform(inputs[0])  # 输入的是coarse on prediction 粗粒度特征
         if len(inputs) == 4:
-            global_prdict = self.residual(inputs[2])
-            global_ref = self.residual(inputs[3])
-            return lateral, trunk + lateral + global_prdict + global_ref, global_prdict, global_ref  # lateral:Coarse Features  trunk+lateral: Adjusted fine features
+            # global_prdict = self.global_block(inputs[2])
+            # global_ref = self.global_block(inputs[3])
+            global_feature = self.global_block(torch.cat(inputs[2:], dim=1))
+            global_pre = self.transform(inputs[2])
+            global_ref = self.transform(inputs[3])
+            return lateral, trunk + lateral + global_feature, global_pre, global_ref  # lateral:Coarse Features  trunk+lateral: Adjusted fine features
         else:
             return lateral, trunk + lateral
 

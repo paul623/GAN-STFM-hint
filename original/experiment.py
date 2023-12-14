@@ -186,6 +186,7 @@ class Experiment(object):
                              f"{self.d_optimizer.param_groups[0]['lr']}")
             train_g_loss, train_d_loss, train_g_error = self.train_on_epoch(epoch, train_loader)
             val_error = self.test_on_epoch(val_loader)
+            self.logger.info("val_error:" + str(val_error))
             csv_header = ['epoch', 'train_g_loss', 'train_d_loss', 'train_g_error', 'val_error']
             csv_values = [epoch, train_g_loss, train_d_loss, train_g_error, val_error]
             log_csv(self.history, csv_values, header=csv_header)
