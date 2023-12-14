@@ -12,8 +12,8 @@ from numpy.linalg import norm
 import tifffile
 from pytorch_msssim import ssim
 
-ground_truth_dir = "/home/zbl/datasets/STFusion/LGC/LGC_data/val/2005_061_0302-2005_045_0214/20050302_TM.tif"
-predict_dir = "/home/zbl/datasets/STFusion/RunLog/test/PRED_2005_061_0302-2005_045_0214.tif"
+ground_truth_dir = "/home/zbl/datasets/STFusion/LGC/LGC_data/val/2005_029_0129-2005_013_0113/20050113_TM.tif"
+predict_dir = "/home/zbl/datasets/STFusion/RunLog/2023-12-12/test/PRED_2005_029_0129-2005_013_0113.tif"
 
 
 def load_tiff_as_tensor(file_path):
@@ -47,6 +47,7 @@ def calculate_rmse(image_pred, image_target):
     return rmse.item()
 
 def spectral_angle_mapper(spectrum1, spectrum2):
+
     # 归一化两个光谱向量
     spectrum1_normalized = spectrum1 / np.linalg.norm(spectrum1)
     spectrum2_normalized = spectrum2 / np.linalg.norm(spectrum2)
@@ -70,6 +71,7 @@ def calculate_sam(image1_path, image2_path):
     # 获取图像的光谱向量（每个像素点）
     spectra1 = image1.reshape((-1, image1.shape[-1]))
     spectra2 = image2.reshape((-1, image2.shape[-1]))
+
 
     # 初始化 SAM 值
     sam_values = []

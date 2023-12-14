@@ -110,7 +110,7 @@ class SuperResTransformer(nn.Module):
         self.transformer = Transformer(dim, depth, heads, mlp_dim, dropout)
         self.to_cls_token = nn.Identity()  # 一个恒等映射模块（Identity），用于提取 Transformer 输出中的类别标记信息。
 
-    def forward(self, img, mask=None, maps=None, K=64):
+    def forward(self, img, mask=None, maps=None,  K=64):
         b, n, _, _ = img.shape
         # No need to add position code, just add token
         features_token = repeat(self.cls_token, '() n d -> b n d', b=b)

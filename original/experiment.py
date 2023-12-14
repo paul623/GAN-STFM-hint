@@ -77,20 +77,27 @@ class Experiment(object):
         self.logger.info(f'Epoch[{n_epoch}] - {datetime.now()}')
         for idx, data in enumerate(data_loader):  # 同时获取元素的索引和元素本身 直接写 for data in data_loader也行
             t_start = timer()
+            global_data = data[1]
+            data = data[0]
             data = [im.to(self.device) for im in data]  # 放cuda/cpu上运行
+            global_data = [im.to(self.device) for im in global_data]  # 放cuda/cpu上运行
+
             '''
-            data = [Ct, Ft', Ft] 即[要预测时刻的低分， 任意时刻的高分， 要预测时刻的高分]
+            data = [Ct, Ft', Ft, Ct-global, Ft'-global] 即[要预测时刻的低分， 任意时刻的高分， 要预测时刻的高分]
             这里inputs取的是第一和第二项，即 inputs = [Ct, Ft'] 注意python里面切分是左闭右开
             这里target是第三项，即 target = [Ft]
             CGAN有两个输入，一个是噪声z一个是label，这里将Ft'经过特征网络提取特征后作为label输入，噪声z就是要预测的低分图像Ct
             '''
             inputs, target = data[:-1], data[-1]    # inputs =[Ct, Ft']   target = [Ft]
+            global_predict = global_data[0]  # 要预测的低分 全局图像
+            global_ref = global_data[1]      # 任意时刻的高分 全局图像
             ############################
             # (1) Update D network 先更新判别器
             ###########################
             self.discriminator.zero_grad()
             self.generator.zero_grad()
-
+            inputs.append(global_predict)
+            inputs.append(global_ref)
             prediction = self.generator(inputs)  # inputs： [0, 1][batch_size, 6, 256, 256]
             '''
             prediction.detach() 创建一个新的张量，与张量共享权重，但是不参与梯度传播计算
@@ -140,8 +147,12 @@ class Experiment(object):
         self.discriminator.eval()
         epoch_error = AverageMeter()
         for data in data_loader:
+            global_data = data[1]
+            data = data[0]
             data = [im.to(self.device) for im in data]
+            global_data = [im.to(self.device) for im in global_data]
             inputs, target = data[:-1], data[-1]
+            inputs.append(global_data)
             prediction = self.generator(inputs)
             g_loss = F.mse_loss(prediction, target)
             epoch_error.update(g_loss.item())
@@ -213,7 +224,11 @@ class Experiment(object):
         最后计算预测与实际的差值：modis_2005061和landsat_20050302
         '''
         for inputs in test_loader:
+            global_data = inputs[1]
+            inputs = inputs[0]
             inputs = [im.to(self.device) for im in inputs]
+            global_data = [im.to(self.device) for im in global_data]
+            inputs.append(global_data)
             prediction = self.generator(inputs)
             prediction = prediction.squeeze().cpu().numpy()
             patches.append(prediction * pixel_scale)

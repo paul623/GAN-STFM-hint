@@ -154,7 +154,12 @@ class ResidulBlockWtihSwitchNorm(nn.Module):
     def forward(self, inputs):
         trunk = self.residual(inputs[1])  # 细粒度的特征Fine reference
         lateral = self.transform(inputs[0])  # 输入的是coarse on prediction 粗粒度特征
-        return lateral, trunk + lateral  # lateral:Coarse Features  trunk+lateral: Adjusted fine features
+        if len(inputs) == 4:
+            global_prdict = self.residual(inputs[2])
+            global_ref = self.residual(inputs[3])
+            return lateral, trunk + lateral + global_prdict + global_ref, global_prdict, global_ref  # lateral:Coarse Features  trunk+lateral: Adjusted fine features
+        else:
+            return lateral, trunk + lateral
 
 
 '''
@@ -241,7 +246,8 @@ class SFFusion(nn.Module):
         )
 
     def forward(self, inputs):  # inputs实际上是两张图片，所以需要把他们拼成一个
-        return self.decoder(torch.cat(self.encoder(inputs), 1))  # 按照通道数拼在一起，因此通道数变成两倍
+        x = self.encoder(inputs)[:2]
+        return self.decoder(torch.cat(x, 1))  # 按照通道数拼在一起，因此通道数变成两倍
 
 '''
 D-ResBlock

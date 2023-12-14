@@ -3,17 +3,20 @@ import numpy as np
 import rasterio
 import math
 from enum import Enum, auto, unique
-
+import torchvision.transforms.functional as TF
+from PIL import Image
 import torch
 from torch.utils.data import Dataset
 
-from original.utils import make_tuple
+from utils import make_tuple
+
 '''
 2023年12月3日
 这个文件主要是用来对遥感图像进行切块处理
 定义了一个PatchSet，可以直接当成dataset来用
 只需要注意一下patch_size大小，在训练的时候无所谓，但是测试的时候必须都能被高宽整除
 '''
+
 
 @unique
 class Mode(Enum):
@@ -44,6 +47,7 @@ def get_pair_path(directory: Path, mode: Mode):
         if mode is Mode.PREDICTION:
             del paths[2]
     return paths
+
 
 # 按照get_pair_path返回的三张图片路径来加载图像
 def load_image_pair(directory: Path, mode: Mode):
@@ -94,11 +98,27 @@ class PatchSet(Dataset):
         id_y = self.patch_stride[1] * (residual // self.n_patch_y)
         return id_n, id_x, id_y
 
+    @staticmethod
+    def transGlobalImg(img, patch_size, img_size):
+        img[img < 0] = 0
+        data = img.astype(np.float32)
+        data = torch.from_numpy(data)
+        out = data.mul_(0.0001)
+        original_height, original_width = img_size
+        # 调整图像大小为 N*N
+        resized_image_tensor = out.view(out.shape[0], original_height, original_width).unsqueeze(0)
+        resized_image_tensor = torch.nn.functional.interpolate(resized_image_tensor, size=patch_size, mode='bilinear',
+                                                               align_corners=False)
+
+        # 恢复通道维度
+        resized_image_tensor = resized_image_tensor.squeeze(0)
+        return resized_image_tensor
     def __getitem__(self, index):
         id_n, id_x, id_y = self.map_index(index)
 
         images = load_image_pair(self.image_dirs[id_n], mode=self.mode)
-        patches = [None] * len(images)
+
+        patches = [None] * (len(images))
 
         for i in range(len(patches)):
             im = images[i][:,
@@ -106,9 +126,15 @@ class PatchSet(Dataset):
                  id_y: (id_y + self.patch_size[1])]
             patches[i] = self.transform(im)
 
+        global_branch = []
+        global_branch.append(self.transGlobalImg(images[0], self.patch_size, self.image_size))
+        global_branch.append(self.transGlobalImg(images[1], self.patch_size, self.image_size))
+        # patches.append(TF.resize(images[0],(80, 80)))  # 要预测时刻的低分
+        # patches.append(TF.resize(images[1],(80, 80)))  # 任意时刻的高分
+
         del images[:]
         del images
-        return patches
+        return patches, global_branch
 
     def __len__(self):
         return self.num_patch
