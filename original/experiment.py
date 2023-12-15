@@ -198,7 +198,7 @@ class Experiment(object):
     @torch.no_grad()
     def test(self, test_dir, patch_size, num_workers=0):
         self.generator.eval()
-        load_checkpoint(self.best, model=self.generator)
+        load_checkpoint(self.last_g, model=self.generator)
         self.logger.info('Testing...')
         # 训练的时候可以通过不同步长来切割重叠块以提供更多信息用于分析或者处理
         # 预测/测试的时候就可以直接按照块大小来切分
