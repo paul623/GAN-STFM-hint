@@ -171,7 +171,8 @@ class ResidulBlockWtihSwitchNorm(nn.Module):
             global_feature = self.global_block(torch.cat(inputs[2:], dim=1))
             global_pre = self.transform(inputs[2])
             global_ref = self.transform(inputs[3])
-            return lateral, trunk + lateral + global_feature, global_pre, global_ref  # lateral:Coarse Features  trunk+lateral: Adjusted fine features
+            fushion_feature = trunk + lateral + global_feature
+            return lateral, fushion_feature, global_pre, global_ref  # lateral:Coarse Features  trunk+lateral: Adjusted fine features
         else:
             return lateral, trunk + lateral
 

@@ -63,7 +63,8 @@ def load_image_pair(directory: Path, mode: Mode):
 
 def crop_and_resize_image_global(image, id_x, id_y, patch_size):
     # 裁剪成 patch_size 的两倍
-    cropped_image = image[:, id_x: (id_x + patch_size[0] * 2), id_y: (id_y + patch_size[1] * 2)]
+    # cropped_image = image[:, id_x: (id_x + patch_size[0] * 2), id_y: (id_y + patch_size[1] * 2)]
+    cropped_image = image[:, id_x: (id_x + 50), id_y: (id_y + 50)]
     cropped_image = PatchSet.transform(cropped_image)
     # 调整大小至 patch_size
     resized_image = TF.resize(cropped_image, patch_size, interpolation=Image.BILINEAR)
