@@ -11,8 +11,8 @@ import torch
 import tifffile
 from pytorch_msssim import ssim
 from sewar import rmse, ssim, sam, psnr, mse
-ground_truth_dir = "/home/zbl/datasets/STFusion/LGC/original_tif/landsat_tif/20041212_TM.tif"
-predict_dir = "/home/zbl/codeLab/remotePython/SwinSTFM-main/paper_images/swinfuse_LGC.tif"
+ground_truth_dir ="/home/zbl/datasets/STFusion/CIA/data_cia/refs/20020221_TM.tif"
+predict_dir = "/home/zbl/datasets/STFusion/RunLog/baseline/CIA/test/PRED_2002_069_0309-2002_053_0221.tif"
 
 def load_tiff_as_tensor(file_path):
     # 读取 TIFF 图像
