@@ -58,9 +58,9 @@ if __name__ == '__main__':
     train_dir = opt.data_dir / 'train'
     val_dir = opt.data_dir / 'val'
     test_dir = val_dir
-    if opt.epochs > 0:
-        if opt.epochs > 0:
-            experiment.train(train_dir, val_dir,
-                             opt.patch_stride, opt.batch_size,
-                             num_workers=opt.num_workers, epochs=opt.epochs)
+    # if opt.epochs > 0:
+    #     if opt.epochs > 0:
+    #         experiment.train(train_dir, val_dir,
+    #                          opt.patch_stride, opt.batch_size,
+    #                          num_workers=opt.num_workers, epochs=opt.epochs)
     experiment.test(test_dir, opt.patch_size, num_workers=opt.num_workers)

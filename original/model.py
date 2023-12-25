@@ -158,9 +158,9 @@ class ResidulBlockWtihSwitchNorm(nn.Module):
         elif sampling == Sampling.DownSampling:  # 如果进行下采样
             residual[2] = Conv3X3WithPadding(in_channels, channels, 2)  # 在Conv3之前插入上采样模块
             transform[0] = Conv3X3WithPadding(in_channels, channels, 2)     # 在提取特征之前进行下采样操作
-
         self.residual = nn.Sequential(*residual)
         self.transform = nn.Sequential(*transform)
+        self.alpha = 0.001
 
     def forward(self, inputs):
         trunk = self.residual(inputs[1])  # 细粒度的特征Fine reference
@@ -171,11 +171,10 @@ class ResidulBlockWtihSwitchNorm(nn.Module):
             global_feature = self.global_block(torch.cat(inputs[2:], dim=1))
             global_pre = self.transform(inputs[2])
             global_ref = self.transform(inputs[3])
-            fushion_feature = trunk + lateral + global_feature
-            return lateral, fushion_feature, global_pre, global_ref  # lateral:Coarse Features  trunk+lateral: Adjusted fine features
+            fusion_feature = (trunk+lateral)+self.alpha*global_feature
+            return lateral, fusion_feature, global_pre, global_ref  # lateral:Coarse Features  trunk+lateral: Adjusted fine features
         else:
             return lateral, trunk + lateral
-
 
 '''
 GDecoder ResBlock
